@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Mi App Flask - Admin</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background: #f4f4f4; }
+        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        input { display: block; margin-bottom: 10px; padding: 8px; width: 200px; }
+        button { padding: 10px 15px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        #mensaje { color: red; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>1. Login</h2>
+    <input type="text" id="correo" placeholder="Correo (admin@correo.com)">
+    <input type="password" id="password" placeholder="Contraseña">
+    <button onclick="login()">Obtener Token</button>
+    
+    <p>Token generado (Cópialo):</p>
+    <textarea id="tokenGenerado" readonly style="width: 100%; height: 50px; background: #eee;"></textarea>
+
+    <hr>
+
+    <h2>2. Acceso Administrador</h2>
+    <p>Pega aquí tu Token de Admin:</p>
+    <input type="text" id="tokenManual" placeholder="Pegar token aquí..." style="width: 100%;">
+    
+    <button onclick="cargarUsuarios()" style="background: green;">Entrar y Listar Usuarios</button>
+    <button onclick="agregarAlumno()" style="background: orange;">Agregar Alumno (Solo Admin)</button>
+
+    <table id="tablaUsuarios">
+        <thead>
+            <tr><th>ID</th><th>Nombre</th><th>Rol</th></tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<script>
+    // PASO 1: Login para obtener el JSON del token
+    async function login() {
+    const emailValue = document.getElementById('correo').value;
+    const passValue = document.getElementById('password').value;
+
+    const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ correo: emailValue, clave: passValue })
+    });
+
+    const data = await res.json();
+    
+    if (res.ok) {
+        // 1. Mostramos el mensaje de éxito que querías
+        // 2. Mostramos el Token (data.access_token) y confirmamos la Cookie
+        document.getElementById('tokenGenerado').value = 
+            "Autenticación completada con éxito.\n" +
+            "Token: " + data.access_token + "\n" +
+            "¡Cookie 'access_token_cookie' guardada en el navegador!";
+        
+        console.log("Cookie generada correctamente");
+    } else {
+        alert("Error: " + data.msg);
+    }
+}
+
+    
+    // FUNCIÓN PARA LISTAR USUARIOS
+async function cargarUsuarios() {
+    // Ya no pegamos el token manualmente, el navegador usa la cookie
+    const res = await fetch('/api/usuarios', { // Asegúrate que la ruta sea /api/usuarios
+        method: 'GET'
+        // Borramos la parte de 'headers' y 'Authorization'
+    });
+
+    if (res.ok) {
+        const result = await res.json();
+        const usuarios = result.data; // Accedemos a la lista dentro de 'data'
+        const tabla = document.querySelector("#tablaUsuarios tbody");
+        tabla.innerHTML = "";
+        usuarios.forEach(u => {
+            tabla.innerHTML += `<tr><td>${u.id}</td><td>${u.nombre}</td><td>${u.rol || 'N/A'}</td></tr>`;
+        });
+    } else {
+        alert("Error al cargar usuarios. ¿Estás logueado?");
+    }
+}
+// FUNCIÓN PARA AGREGAR ALUMNO
+async function agregarAlumno() {
+    const nombre = prompt("Nombre del alumno:");
+    const email = prompt("Email del alumno:");
+
+    if (!nombre || !email) return;
+
+    const res = await fetch('/api/usuarios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: nombre, email: email })
+        // El navegador enviará la cookie automáticamente
+    });
+
+    if (res.ok) {
+        alert("¡Alumno agregado!");
+        cargarUsuarios(); // Recargamos la lista
+    } else {
+        const error = await res.json();
+        alert("Error: " + (error.msg || "Sin permisos de Admin"));
+    }
+}
+</script>
+
+</body>
+</html>
