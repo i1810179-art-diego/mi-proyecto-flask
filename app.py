@@ -25,24 +25,12 @@ def login_required(f):
     return decorated_function
 
 # --- 2. RUTA PARA REPARAR EL ADMIN ---
-@app.route('/')
+@app.route('/', methods=['GET', 'POST'])
 def inicio():
-    from db import get_connection
-    conn = get_connection()
-    cursor = conn.cursor()
-    # Borramos para evitar duplicados
-    cursor.execute("DELETE FROM usuarios_sistema WHERE correo = 'admin@correo.com'")
-    # Generamos el hash en el mismo servidor de Render
-    password_hash = bcrypt.generate_password_hash('admin123').decode('utf-8')
-    # Insertamos el admin oficial
-    cursor.execute("""
-        INSERT INTO usuarios_sistema (nombre, correo, clave, rol) 
-        VALUES ('Administrador', 'admin@correo.com', %s, 'administrador')
-    """, (password_hash,))
-    conn.commit()
-    conn.close()
-    return "¡Usuario Admin configurado correctamente! Ve al login ahora."
-
+    nombre = None
+    if request.method == 'POST':
+        nombre = request.form['nombre']
+    return render_template('index.html', nombre=nombre)
 # -------------------------------
 # RUTAS DE INTERFAZ WEB
 # -------------------------------
