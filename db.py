@@ -1,9 +1,12 @@
+import os
 import mysql.connector
+
 def get_connection():
-# Creamos una conexión a MySQL
+    # os.getenv busca las variables que pusimos en la pestaña Environment de Render
     return mysql.connector.connect(
-        host="localhost", # Servidor
-        user="root", # Usuario
-        password="", # Contraseña
-        database="flask_db" # Base de datos
+        host=os.getenv('MYSQL_HOST'),
+        user=os.getenv('MYSQL_USER'),
+        password=os.getenv('MYSQL_PASSWORD'),
+        port=os.getenv('MYSQL_PORT'),
+        database=os.getenv('MYSQL_DB')
     )

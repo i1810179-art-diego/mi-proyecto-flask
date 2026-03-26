@@ -1,3 +1,4 @@
+import os
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, set_access_cookies, unset_access_cookies
@@ -154,4 +155,6 @@ def api_logout():
 # EJECUCIÓN
 # -------------------------------
 if __name__ == '__main__':
-    app.run()
+    # Render asigna un puerto automáticamente en la variable PORT
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
