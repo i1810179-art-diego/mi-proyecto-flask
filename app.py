@@ -15,16 +15,26 @@ app.config["JWT_TOKEN_LOCATION"] = ["cookies"]
 app.config["JWT_COOKIE_CSRF_PROTECT"] = False 
 jwt = JWTManager(app)
 
+# --- 1. AQUÍ DEFINIMOS EL DECORADOR (IMPORTANTE) ---
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if "usuario_id" not in session:
+            return redirect(url_for("login_web"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# --- 2. RUTA PARA REPARAR EL ADMIN ---
 @app.route('/')
 def inicio():
     from db import get_connection
     conn = get_connection()
     cursor = conn.cursor()
-    # Borramos el registro que da error
+    # Borramos para evitar duplicados
     cursor.execute("DELETE FROM usuarios_sistema WHERE correo = 'admin@correo.com'")
-    # Generamos el hash nuevo en el servidor
+    # Generamos el hash en el mismo servidor de Render
     password_hash = bcrypt.generate_password_hash('admin123').decode('utf-8')
-    # Insertamos el admin con el hash perfecto
+    # Insertamos el admin oficial
     cursor.execute("""
         INSERT INTO usuarios_sistema (nombre, correo, clave, rol) 
         VALUES ('Administrador', 'admin@correo.com', %s, 'administrador')
@@ -32,6 +42,7 @@ def inicio():
     conn.commit()
     conn.close()
     return "¡Usuario Admin configurado correctamente! Ve al login ahora."
+
 # -------------------------------
 # RUTAS DE INTERFAZ WEB
 # -------------------------------
@@ -70,7 +81,7 @@ def usuarios():
     return render_template('usuarios.html', usuarios=lista_usuarios)
 
 # -------------------------------
-# API REST (Rutas Corregidas)
+# API REST
 # -------------------------------
 
 @app.route("/api/login", methods=["POST"])
@@ -78,8 +89,7 @@ def api_login():
     data = request.get_json()
     correo = data.get('correo')
     clave = data.get('clave')
-    print(f"DEBUG: Datos recibidos -> Correo: {correo}, Clave: {clave}")
-
+    
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT * FROM usuarios_sistema WHERE correo = %s", (correo,))
@@ -87,7 +97,6 @@ def api_login():
     conn.close()
 
     if usuario and bcrypt.check_password_hash(usuario['clave'], clave):
-        print(f"DEBUG: ¿Coinciden?: True | Usuario: {correo}") 
         access_token = create_access_token(identity=str(usuario["id"]))
         resp = jsonify({
             "status": "ok", 
@@ -97,7 +106,6 @@ def api_login():
         set_access_cookies(resp, access_token)
         return resp, 200
     else:
-        print(f"DEBUG: ¿Coinciden?: False | Intento con: {correo}") 
         return jsonify({"status": "error", "msg": "Usuario o clave incorrecta"}), 401
 
 @app.route("/api/usuarios", methods=["GET"])
@@ -112,17 +120,12 @@ def api_listar_usuarios():
 @app.route("/api/usuarios", methods=["POST"])
 @jwt_required()
 def api_crear_usuario():
-    # 1. Obtenemos el ID del usuario desde el token
     usuario_id_token = get_jwt_identity() 
-    
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
-    
-    # 2. Verificamos el ROL del usuario logueado
     cursor.execute("SELECT rol FROM usuarios_sistema WHERE id = %s", (usuario_id_token,))
     usuario_que_pide = cursor.fetchone()
     
-    # 3. Bloqueamos si el rol no es 'administrador'
     if not usuario_que_pide or usuario_que_pide["rol"] != "administrador":
         conn.close()
         return jsonify({
@@ -130,7 +133,6 @@ def api_crear_usuario():
             "msg": "Acceso denegado. Solo administradores pueden agregar alumnos."
         }), 403
 
-    # 4. Si es admin, procedemos con el registro
     data = request.get_json()
     nombre = data.get("nombre")
     email = data.get("email")
@@ -150,10 +152,6 @@ def api_logout():
     unset_access_cookies(resp)
     return resp, 200
 
-# -------------------------------
-# EJECUCIÓN
-# -------------------------------
 if __name__ == '__main__':
-    # Render asigna un puerto automáticamente en la variable PORT
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
