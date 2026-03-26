@@ -15,24 +15,23 @@ app.config["JWT_TOKEN_LOCATION"] = ["cookies"]
 app.config["JWT_COOKIE_CSRF_PROTECT"] = False 
 jwt = JWTManager(app)
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/')
 def inicio():
-    nombre = None
-    if request.method == 'POST':
-        nombre = request.form['nombre']
-    return render_template('index.html', nombre=nombre)
-
-# -------------------------------
-# DECORADORES (Para Interfaz Web)
-# -------------------------------
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if "usuario_id" not in session:
-            return redirect(url_for("login_web"))
-        return f(*args, **kwargs)
-    return decorated_function
-
+    from db import get_connection
+    conn = get_connection()
+    cursor = conn.cursor()
+    # Borramos el registro que da error
+    cursor.execute("DELETE FROM usuarios_sistema WHERE correo = 'admin@correo.com'")
+    # Generamos el hash nuevo en el servidor
+    password_hash = bcrypt.generate_password_hash('admin123').decode('utf-8')
+    # Insertamos el admin con el hash perfecto
+    cursor.execute("""
+        INSERT INTO usuarios_sistema (nombre, correo, clave, rol) 
+        VALUES ('Administrador', 'admin@correo.com', %s, 'administrador')
+    """, (password_hash,))
+    conn.commit()
+    conn.close()
+    return "¡Usuario Admin configurado correctamente! Ve al login ahora."
 # -------------------------------
 # RUTAS DE INTERFAZ WEB
 # -------------------------------
